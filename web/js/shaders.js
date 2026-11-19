@@ -11,13 +11,32 @@ uniform vec3 uSunDir;
 float hash21(vec2 p){p=fract(p*vec2(123.34,456.21));p+=dot(p,p+45.32);return fract(p.x*p.y);}
 float noise2(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(hash21(i),hash21(i+vec2(1,0)),f.x),mix(hash21(i+vec2(0,1)),hash21(i+vec2(1)),f.x),f.y);}
 float fbm(vec2 p){float f=0.0;f+=noise2(p)*.55;p=mat2(.8,-.6,.6,.8)*p*2.03;f+=noise2(p)*.28;p=mat2(.8,-.6,.6,.8)*p*2.01;f+=noise2(p)*.17;return f;}
-float voronoi(vec2 p){vec2 i=floor(p),f=fract(p);float d=8.0;for(int y=-1;y<=1;y++)for(int x=-1;x<=1;x++){vec2 g=vec2(x,y);vec2 r=g+vec2(hash21(i+g),hash21(i+g+19.7))-f;d=min(d,dot(r,r));}return sqrt(d);}
+float voronoiEdge(vec2 p){
+  vec2 i=floor(p),f=fract(p);float d1=8.0,d2=8.0;
+  for(int y=-1;y<=1;y++)for(int x=-1;x<=1;x++){
+    vec2 g=vec2(x,y);vec2 r=g+vec2(hash21(i+g),hash21(i+g+19.7))-f;float d=dot(r,r);
+    if(d<d1){d2=d1;d1=d;}else if(d<d2){d2=d;}
+  }
+  return sqrt(d2)-sqrt(d1);
+}
 float caustics(vec2 p,float t){
-  vec2 q=p*.72+vec2(t*.035,-t*.022);
-  float a=voronoi(q+vec2(noise2(q*.6+t*.025),noise2(q*.6-t*.018))*.65);
-  float b=voronoi(q*1.37+vec2(-t*.028,t*.018));
-  float c=pow(max(0.0,1.0-a),5.0)+.35*pow(max(0.0,1.0-b),6.0);
-  return clamp(c,0.0,1.6);
+  mat2 r1=mat2(.86,-.50,.50,.86),r2=mat2(.32,-.95,.95,.32);
+  vec2 q=r1*p*1.12+vec2(t*.041,-t*.027);
+  vec2 warp=vec2(noise2(q*.53+vec2(t*.018,0.0)),noise2(q*.53+vec2(7.3,-t*.015)))-.5;
+  q+=warp*.72+.11*vec2(sin(q.y*2.3+t*.21),sin(q.x*1.9-t*.17));
+  float edge=voronoiEdge(q);
+  float width=mix(.014,.041,noise2(q*1.31+vec2(-t*.025,t*.018)));
+  float aa=max(.012,fwidth(edge)*1.35);
+  float line=1.0-smoothstep(width,width+.034+aa,edge);
+  float broken=smoothstep(.24,.70,noise2(q*.89+vec2(t*.022,-t*.016)));
+  line*=.18+.82*broken;
+  vec2 q2=r2*p*.31+vec2(-t*.018,t*.013);
+  q2+=vec2(noise2(q2*.71+3.1),noise2(q2*.71-5.7))*.28;
+  float broadEdge=voronoiEdge(q2);
+  float broad=.70+.30*(1.0-smoothstep(.018,.17,broadEdge));
+  float footprint=max(length(dFdx(p)),length(dFdy(p)));
+  float distant=1.0-smoothstep(.16,.72,footprint);
+  return clamp(line*broad*distant*1.06,0.0,1.0);
 }
 vec3 oceanBackground(vec3 ray){
   float up=clamp(ray.y*.5+.5,0.0,1.0);
@@ -186,24 +205,26 @@ void main(){
   if(uMaterialDetail<.5){
     vec3 sand=vec3(.34,.405,.335);float ca=0.0,pools=1.0;
     if(dist<105.0){float grains=noise2(vWorld.xz*44.0),broad=fbm(vWorld.xz*.12);sand=mix(vec3(.22,.31,.28),vec3(.48,.52,.39),broad);sand*=.94+(grains-.5)*.10;ca=caustics(vWorld.xz,uTime);pools=.72+.28*noise2(vWorld.xz*.24+uTime*.015);}
-    vec3 col=sand*(.36+.70*max(0.0,dot(n,uSunDir)))+vec3(.37,.76,.64)*ca*pools*.46;
+    vec3 col=sand*(.36+.70*max(0.0,dot(n,uSunDir)))+vec3(.37,.76,.64)*ca*pools*.34;
     frag=vec4(waterFog(col,vWorld,dist),1);return;
   }
   float footprint=max(length(dFdx(vWorld.xz)),length(dFdy(vWorld.xz)));
   float grainFade=(1.0-smoothstep(.018,.085,footprint))*(1.0-smoothstep(24.0,76.0,dist));
+  float microFade=(1.0-smoothstep(.008,.035,footprint))*(1.0-smoothstep(10.0,38.0,dist));
   float rippleFade=1.0-smoothstep(.10,.52,footprint);
   float ripple=sin(vWorld.x*7.5+sin(vWorld.z*1.7)*2.0);
   vec3 sand=vec3(.34,.405,.335);float ca=0.0,pools=1.0;
   if(dist<105.0){
     float grains=noise2(vWorld.xz*44.0),broad=fbm(vWorld.xz*.12);
+    float fine=noise2(vWorld.xz*91.0+noise2(vWorld.xz*6.0)*.7);
     sand=mix(vec3(.22,.31,.28),vec3(.48,.52,.39),broad);
-    sand*=.93+(grains-.5)*.13*grainFade+ripple*.022*rippleFade;
-    float bump=(grains-.5)*.032*grainFade+ripple*.024*rippleFade;
+    sand*=.93+(grains-.5)*.15*grainFade+(fine-.5)*.09*microFade+ripple*.022*rippleFade;
+    float bump=(grains-.5)*.038*grainFade+(fine-.5)*.018*microFade+ripple*.024*rippleFade;
     n=perturbNormal(n,vWorld,bump,.65);
     ca=caustics(vWorld.xz,uTime);pools=.72+.28*noise2(vWorld.xz*.24+uTime*.015);
   }
   float wrap=clamp((dot(n,uSunDir)+.16)/1.16,0.0,1.0);
-  vec3 col=sand*(.34+.70*wrap)+vec3(.37,.76,.64)*ca*pools*.48;
+  vec3 col=sand*(.34+.70*wrap)+vec3(.37,.76,.64)*ca*pools*.34;
   col=waterFog(col,vWorld,dist);frag=vec4(col,1);
 }
 `;
@@ -215,7 +236,32 @@ void main(){vec3 p=aPos;vec2 sl=vec2(0);gerstner(p,sl,vec2(1,.24),.34,10.5,1.08,
 `;
   const waterFS = head+common+`
 in vec3 vWorld;in vec3 vNormal;in vec2 vUV;in float vCrest;out vec4 frag;
-void main(){vec3 n=normalize(vNormal);vec3 V=normalize(uEye-vWorld);if(dot(n,V)<0.0)n=-n;float micro=noise2(vWorld.xz*3.5+vec2(uTime*.16,-uTime*.11));n=normalize(n+vec3((micro-.5)*.13,0,(noise2(vWorld.zx*4.1-uTime*.08)-.5)*.13));float facing=max(0.0,dot(n,V));float fres=pow(1.0-facing,3.0);float window=smoothstep(.48,.78,facing);float dist=distance(uEye,vWorld);float ca=0.0;if(dist<120.0)ca=caustics(vWorld.xz*1.5,uTime*1.4);float spec=pow(max(0.0,dot(reflect(-uSunDir,n),V)),180.0);float glitter=pow(max(0.0,dot(reflect(-uSunDir,normalize(n+vec3((micro-.5)*.3,0,0))),V)),650.0);vec3 deep=vec3(.012,.19,.22);vec3 sky=vec3(.22,.67,.72);vec3 col=mix(deep,sky,window*.64+fres*.18);col+=vec3(.20,.62,.58)*ca*.12;col+=vec3(1.15,1.25,1.05)*spec*2.5+vec3(1.3)*glitter*3.0;col+=vec3(.08,.22,.20)*max(0.0,vCrest)*.2;col=waterFog(col,vWorld,dist);frag=vec4(col,1);}
+void main(){
+  vec3 n=normalize(vNormal),V=normalize(uEye-vWorld);if(dot(n,V)<0.0)n=-n;
+  vec2 D=normalize(vec2(1.0,.24)),P=vec2(-D.y,D.x);
+  float along=dot(vWorld.xz,D),across=dot(vWorld.xz,P);
+  float warp=noise2(vec2(along*.23,across*.41)+vec2(uTime*.025,-uTime*.018))*1.35;
+  float f1=along*7.2+across*.65+uTime*1.55+warp;
+  float f2=along*13.4-across*1.15-uTime*2.05+warp*1.7;
+  float f3=along*23.0+across*2.4+uTime*2.75-warp*.8;
+  vec2 gradient=D*(.032*cos(f1)+.021*cos(f2)+.009*cos(f3))+P*(.008*cos(f1)-.007*cos(f2)+.006*cos(f3));
+  n=normalize(n+vec3(gradient.x,0.0,gradient.y));
+  float facing=max(0.0,dot(n,V)),fres=pow(1.0-facing,3.0),window=smoothstep(.48,.78,facing);
+  window*=.78+.22*noise2(vec2(along*.65,across*3.4)+vec2(uTime*.035,-uTime*.02));
+  window=.42+.58*window;
+  float dist=distance(uEye,vWorld),ca=0.0;if(dist<120.0)ca=caustics(vWorld.xz*1.5,uTime*1.4);
+  float spec=pow(max(0.0,dot(reflect(-uSunDir,n),V)),180.0);
+  float glitter=pow(max(0.0,dot(reflect(-uSunDir,n),V)),280.0);
+  float crest1=pow(.5+.5*sin(f1),14.0),crest2=pow(.5+.5*sin(f2),20.0);
+  float variation=.58+.42*noise2(vec2(along*.48,across*2.1)-uTime*.035);
+  vec3 deep=vec3(.012,.19,.22),sky=vec3(.17,.55,.60);
+  vec3 col=mix(deep,sky,window*.48+fres*.16);
+  col+=vec3(.20,.62,.58)*ca*.045;
+  col+=vec3(.22,.43,.40)*(crest1*.090+crest2*.048)*variation;
+  col+=vec3(1.05,1.15,1.00)*spec*1.45+vec3(.85,.96,.91)*glitter*1.35;
+  col+=vec3(.08,.22,.20)*max(0.0,vCrest)*.16;
+  col=waterFog(col,vWorld,dist);frag=vec4(col,1);
+}
 `;
   const fsQuadVS = head+`layout(location=0) in vec2 aPos;out vec2 vUV;void main(){vUV=aPos*.5+.5;gl_Position=vec4(aPos,0,1);}`;
   const skyFS = head+common+`
