@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>云海鲸歌 · 原生 WebGL</title>
+  <link rel="stylesheet" href="css/style.css?v=106">
+</head>
+<body>
+  <canvas id="gl"></canvas>
+
+  <div class="hud">
+    <div class="title">云海鲸歌</div>
+    <div class="sub">WebGL2 · 零依赖 · 全程序化</div>
+    <div class="palette">
+      <button data-pal="night" class="on">紫夜</button>
+      <button data-pal="arctic">极夜</button>
+      <button data-pal="dusk">黄昏</button>
+    </div>
+  </div>
+
+  <div class="hint">拖拽旋转 · 滚轮缩放 · 空格暂停巡航 · 1 / 2 / 3 切换调色</div>
+  <div class="stats" id="stats"></div>
+  <div id="loading">L O A D I N G</div>
+  <div id="fatal"></div>
+
+  <script src="js/mat4.js?v=106"></script>
+  <script src="js/noise.js?v=106"></script>
+  <script src="js/geometry.js?v=106"></script>
+  <script src="js/shaders.js?v=106"></script>
+  <script src="js/renderer.js?v=106"></script>
+  <script src="js/scene.js?v=106"></script>
+  <script src="js/main.js?v=106"></script>
+</body>
+</html>
