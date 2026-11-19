@@ -13,7 +13,7 @@
   function togglePause(){state.playing=!state.playing;pauseText.textContent=state.playing?'暂停漫游':'继续漫游';document.querySelector('.pause-icon').textContent=state.playing?'Ⅱ':'▶';toast(state.playing?'漫游已继续':'镜头已停泊，海洋仍在呼吸');}
   function resetView(){state.yawTarget=state.pitchTarget=0;state.speedTarget=1;speed.value='1';speedValue.textContent='1.00×';toast('视角与航速已平滑复位');}
   function setQuality(mode){
-    state.qualityMode=mode;renderer.cinema=mode==='cinema';
+    state.qualityMode=mode;renderer.cinema=mode==='cinema';renderer.preferHDR=mode==='cinema';
     if(mode==='cinema'){renderer.quality=2;renderer.requestedSamples=8;renderer.dpr=Math.min(Math.max(devicePixelRatio||1,1),1.75);}
     else if(mode==='high'){renderer.quality=2;renderer.requestedSamples=4;renderer.dpr=Math.min(devicePixelRatio||1,1);}
     else if(mode==='performance'){renderer.quality=0;renderer.requestedSamples=2;renderer.dpr=.75;}

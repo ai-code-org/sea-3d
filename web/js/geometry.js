@@ -138,23 +138,26 @@
   }
 
   function fish(kind) {
-    const parts=[],p=[],id=[],co=[],rings=16,seg=12;
-    const h=kind===0?.18:kind===1?.43:.66, w=kind===0?.09:kind===1?.16:.105;
+    const parts=[],p=[],id=[],co=[],rings=28,seg=20;
+    const h=kind===0?.18:kind===1?.43:.66,w=kind===0?.12:kind===1?.20:.16;
     for(let j=0;j<=rings;j++) {
       const t=j/rings,x=-.82+t*1.72,r=Math.pow(Math.sin(t*Math.PI),.65)*(kind===0?.82:1);
       for(let i=0;i<=seg;i++) {
-        const a=i/seg*TAU, up=Math.cos(a);
+        const a=i/seg*TAU,up=Math.cos(a);
         p.push(x,up*r*h,Math.sin(a)*r*w);
-        const belly=Math.max(0,-up); co.push(.82+belly*.18,.86+belly*.14,.88+belly*.12);
+        const belly=Math.max(0,-up);co.push(.82+belly*.18,.86+belly*.14,.88+belly*.12);
       }
     }
-    for(let j=0;j<rings;j++)for(let i=0;i<seg;i++) {const a=j*(seg+1)+i,b=a+seg+1;id.push(a,a+1,b,b,a+1,b+1);}
+    for(let j=0;j<rings;j++)for(let i=0;i<seg;i++){const a=j*(seg+1)+i,b=a+seg+1;id.push(a,a+1,b,b,a+1,b+1);}
     parts.push(computeNormals(mesh(p,id,null,co)));
-    const tail=kind===2?1.0:kind===1?.78:.62;
-    parts.push(solidFin([[-.72,0,0],[-1.30,tail,0],[-1.12,0,0],[-1.30,-tail,0]],.018,[.8,.82,.75]));
-    parts.push(solidFin([[.28,h*.7,0],[-.38,h*1.55,0],[-.65,h*.55,0]],.015,[.72,.78,.76]));
-    if(kind===2) parts.push(solidFin([[.35,-h*.65,0],[-.28,-h*1.45,0],[-.70,-h*.4,0]],.015,[.72,.78,.76]));
-    for(const s of [-1,1]) parts.push(ellipsoid(.065,.065,.025,.60,h*.22,s*w*.78,8,6,[.008,.012,.014]));
+    const tail=kind===2?1.0:kind===1?.78:.62,finColor=[.56,.62,.58];
+    parts.push(curvedFin([[-.69,0,0],[-1.24,tail,0],[-1.15,tail*.42,0],[-1.07,0,0],[-1.15,-tail*.42,0],[-1.24,-tail,0]],.012,finColor,3));
+    parts.push(curvedFin([[.28,h*.7,0],[-.08,h*1.24,0],[-.40,h*1.50,0],[-.65,h*.55,0]],.010,finColor,4));
+    if(kind===2)parts.push(curvedFin([[.35,-h*.65,0],[-.06,-h*1.18,0],[-.32,-h*1.46,0],[-.70,-h*.4,0]],.010,finColor,4));
+    for(const s of [-1,1]){
+      parts.push(curvedFin([[.28,-h*.12,s*w*.72],[-.02,-h*.48,s*(w+.18)],[-.46,-h*.40,s*(w+.28)],[-.20,-h*.08,s*w*.80]],.008,finColor,3));
+      parts.push(ellipsoid(.065,.065,.025,.60,h*.22,s*w*.78,10,8,[.008,.012,.014]));
+    }
     return merge(parts);
   }
 
@@ -172,11 +175,13 @@
   function kelp() {
     const p=[],id=[],co=[];
     for(let blade=0;blade<3;blade++) {
-      const a=blade*Math.PI/3,dx=Math.cos(a),dz=Math.sin(a),off=p.length/3,steps=11;
+      const baseAngle=blade*Math.PI/3,off=p.length/3,steps=14;
+      const length=3.45+.45*Math.sin(blade*2.2+.7),widthVar=.82+.30*Math.sin(blade*1.7+1.0);
       for(let j=0;j<=steps;j++) {
-        const t=j/steps,y=t*3.8,w=(.17+.13*Math.sin(t*Math.PI))*(1-t*.76);
-        const bend=.22*Math.sin(t*2.8+blade);
-        for(const s of [-1,1]) {p.push(dx*(s*w+bend),y,dz*(s*w+bend));co.push(.18+.14*t,.53+.27*t,.20+.13*t);}
+        const t=j/steps,y=t*length,w=(.16+.15*Math.sin(t*Math.PI))*Math.pow(1-t*.78,.72)*widthVar;
+        const bend=.25*Math.sin(t*3.1+blade)+.13*t*t*Math.sin(blade*2.4+1.2);
+        const twist=baseAngle+.20*Math.sin(t*3.4+blade),dx=Math.cos(twist),dz=Math.sin(twist);
+        for(const s of [-1,1]){p.push(dx*(s*w+bend),y,dz*(s*w+bend));co.push(.16+.15*t,.48+.30*t,.19+.15*t);}
       }
       for(let j=0;j<steps;j++){const q=off+j*2;id.push(q,q+2,q+1,q+1,q+2,q+3);}
     }

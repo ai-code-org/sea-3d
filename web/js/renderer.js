@@ -16,7 +16,7 @@
   function Renderer(canvas){
     const gl=canvas.getContext('webgl2',{alpha:false,antialias:false,depth:true,stencil:false,powerPreference:'high-performance',preserveDrawingBuffer:false});
     if(!gl)throw new Error('此浏览器不支持 WebGL2');
-    this.gl=gl;this.canvas=canvas;this.floatExt=!!gl.getExtension('EXT_color_buffer_float');this.hdr=this.floatExt;this.quality=2;this.cinema=false;this.requestedSamples=4;this.msaaSamples=1;this.dpr=Math.min(devicePixelRatio||1,1);this.drawCalls=0;
+    this.gl=gl;this.canvas=canvas;this.floatExt=!!gl.getExtension('EXT_color_buffer_float');this.preferHDR=false;this.hdr=false;this.quality=2;this.cinema=false;this.requestedSamples=4;this.msaaSamples=1;this.dpr=Math.min(devicePixelRatio||1,1);this.drawCalls=0;
     const S=global.SHADERS;
     this.programs={object:program(gl,S.baseVS,S.objectFS),dolphin:program(gl,S.dolphinVS,S.dolphinFS),fish:program(gl,S.fishVS,S.fishFS),inst:program(gl,S.instVS,S.objectFS),kelp:program(gl,S.instVS,S.kelpFS),terrain:program(gl,S.terrainVS,S.terrainFS),water:program(gl,S.waterVS,S.waterFS),sky:program(gl,S.fsQuadVS,S.skyFS),particle:program(gl,S.particleVS,S.particleFS),shaft:program(gl,S.shaftVS,S.shaftFS),bright:program(gl,S.fsQuadVS,S.brightFS),blur:program(gl,S.fsQuadVS,S.blurFS),composite:program(gl,S.fsQuadVS,S.compositeFS),fxaa:program(gl,S.fsQuadVS,S.fxaaFS)};
     this.quad=gl.createVertexArray();gl.bindVertexArray(this.quad);bindVec(gl,0,2,new Float32Array([-1,-1,3,-1,-1,3]));gl.bindVertexArray(null);
@@ -28,14 +28,14 @@
   Renderer.prototype.uploadShafts=function(data){const gl=this.gl,m=global.GEO.mesh([-1,0,0,1,0,0,-1,1,0,1,1,0],[0,1,2,2,1,3],null,null,[0,0,1,0,0,1,1,1]),out=this.uploadMesh(m);gl.bindVertexArray(out.vao);const b=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,b);gl.bufferData(gl.ARRAY_BUFFER,data,gl.STATIC_DRAW);for(let i=0;i<2;i++){gl.enableVertexAttribArray(4+i);gl.vertexAttribPointer(4+i,4,gl.FLOAT,false,32,i*16);gl.vertexAttribDivisor(4+i,1);}gl.bindVertexArray(null);out.instances=data.length/8;return out;};
   Renderer.prototype.uploadParticles=function(data){const gl=this.gl,vao=gl.createVertexArray();gl.bindVertexArray(vao);bindVec(gl,0,4,data);gl.bindVertexArray(null);return{vao,count:data.length/4};};
   Renderer.prototype.sampleConfig=function(requested){
-    const gl=this.gl,max=Math.min(requested,gl.getParameter(gl.MAX_SAMPLES));let hdr=this.floatExt;
+    const gl=this.gl,max=Math.min(requested,gl.getParameter(gl.MAX_SAMPLES));let hdr=this.floatExt&&this.preferHDR;
     function supported(format){const a=gl.getInternalformatParameter(gl.RENDERBUFFER,format,gl.SAMPLES);let best=0;for(let i=0;i<a.length;i++)best=Math.max(best,a[i]);return best;}
     let floatSamples=hdr?supported(gl.RGBA16F):0;if(hdr&&max>1&&floatSamples<2)hdr=false;
     const available=hdr?floatSamples:supported(gl.RGBA8),samples=max>1?Math.max(1,Math.min(max,available)):1;
     return{hdr,samples};
   };
   Renderer.prototype.resize=function(){const c=this.canvas,w=Math.max(2,Math.floor(c.clientWidth*this.dpr)),h=Math.max(2,Math.floor(c.clientHeight*this.dpr));if(c.width===w&&c.height===h&&this.fbos&&this.fbos.requestedSamples===this.requestedSamples)return;c.width=w;c.height=h;this.width=w;this.height=h;const gl=this.gl,cfg=this.sampleConfig(this.requestedSamples);this.hdr=cfg.hdr;this.msaaSamples=cfg.samples;if(this.fbos){destroyScene(gl,this.fbos.scene);destroyFBO(gl,this.fbos.a);destroyFBO(gl,this.fbos.b);destroyFBO(gl,this.fbos.ldr);}const bw=Math.max(2,Math.floor(w/4)),bh=Math.max(2,Math.floor(h/4));this.fbos={scene:sceneTarget(gl,w,h,cfg.hdr,cfg.samples),a:fbo(gl,bw,bh,false,cfg.hdr),b:fbo(gl,bw,bh,false,cfg.hdr),ldr:fbo(gl,w,h,false,false),requestedSamples:this.requestedSamples};};
-  Renderer.prototype.setCommon=function(p,scene,time){const gl=this.gl,u=p.u;if(u.uVP)gl.uniformMatrix4fv(u.uVP,false,this.vp);if(u.uView)gl.uniformMatrix4fv(u.uView,false,this.view);if(u.uProj)gl.uniformMatrix4fv(u.uProj,false,this.proj);if(u.uTime)gl.uniform1f(u.uTime,time);if(u.uEye)gl.uniform3fv(u.uEye,scene.camera.eye);if(u.uSunDir)gl.uniform3fv(u.uSunDir,scene.sunDir);if(u.uDpr)gl.uniform1f(u.uDpr,this.dpr);};
+  Renderer.prototype.setCommon=function(p,scene,time){const gl=this.gl,u=p.u;if(u.uVP)gl.uniformMatrix4fv(u.uVP,false,this.vp);if(u.uView)gl.uniformMatrix4fv(u.uView,false,this.view);if(u.uProj)gl.uniformMatrix4fv(u.uProj,false,this.proj);if(u.uTime)gl.uniform1f(u.uTime,time);if(u.uEye)gl.uniform3fv(u.uEye,scene.camera.eye);if(u.uSunDir)gl.uniform3fv(u.uSunDir,scene.sunDir);if(u.uDpr)gl.uniform1f(u.uDpr,this.dpr);if(u.uMaterialDetail)gl.uniform1f(u.uMaterialDetail,this.cinema?1:0);};
   Renderer.prototype.draw=function(p,o){const gl=this.gl;gl.bindVertexArray(o.vao);if(o.instances)gl.drawElementsInstanced(gl.TRIANGLES,o.count,gl.UNSIGNED_INT,0,o.instances);else gl.drawElements(gl.TRIANGLES,o.count,gl.UNSIGNED_INT,0);this.drawCalls++;};
   Renderer.prototype.renderScene=function(scene,camera,time){
     const gl=this.gl,w=this.width,h=this.height,S=this.fbos.scene;this.drawCalls=0;scene.camera=camera;
