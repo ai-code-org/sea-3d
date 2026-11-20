@@ -102,9 +102,9 @@ void main(){
 `;
   const dolphinVS = head+`
 layout(location=0) in vec3 aPos;layout(location=1) in vec3 aNormal;layout(location=2) in vec3 aColor;
-uniform mat4 uVP;uniform mat4 uModel;uniform float uTime;uniform float uPhase;
+uniform mat4 uVP;uniform mat4 uModel;uniform float uTime;uniform float uPhase;uniform float uSwimFreq;
 out vec3 vWorld;out vec3 vNormal;out vec3 vColor;out vec3 vLocal;out vec3 vObjNormal;
-void main(){vec3 p=aPos;float tail=1.0-smoothstep(-3.35,.65,p.x);float wave=sin(p.x*1.45-uTime*3.7+uPhase);p.y+=wave*.22*tail*tail;p.z+=sin(p.x*.85-uTime*2.1+uPhase)*.055*tail;vec4 w=uModel*vec4(p,1);vWorld=w.xyz;vNormal=normalize(mat3(uModel)*aNormal);vColor=aColor;vLocal=p;vObjNormal=aNormal;gl_Position=uVP*w;}
+void main(){vec3 p=aPos;float tail=1.0-smoothstep(-1.28,.28,p.x);float wave=sin(p.x*3.1-uTime*uSwimFreq+uPhase);p.y+=wave*.115*tail*tail;vec4 w=uModel*vec4(p,1);vWorld=w.xyz;vNormal=normalize(mat3(uModel)*aNormal);vColor=aColor;vLocal=p;vObjNormal=aNormal;gl_Position=uVP*w;}
 `;
   const dolphinFS = head+common+`
 in vec3 vWorld;in vec3 vNormal;in vec3 vColor;in vec3 vLocal;in vec3 vObjNormal;out vec4 frag;uniform float uMaterialDetail;
@@ -147,12 +147,12 @@ void main(){
   const fishVS = head+`
 layout(location=0) in vec3 aPos;layout(location=1) in vec3 aNormal;layout(location=2) in vec3 aColor;
 layout(location=4) in vec4 iPosScale;layout(location=5) in vec4 iDirPhase;layout(location=6) in vec4 iColorSpeed;
-uniform mat4 uVP;uniform float uTime;
+uniform mat4 uVP;uniform float uTime;uniform highp int uKind;
 out vec3 vWorld;out vec3 vNormal;out vec3 vColor;out vec3 vLocal;out vec3 vObjNormal;out float vFin;
-void main(){vec3 p=aPos;float tail=1.0-smoothstep(-.9,.45,p.x);p.z+=sin(uTime*iColorSpeed.a+iDirPhase.w+p.x*3.2)*.17*tail;vec3 f=normalize(iDirPhase.xyz);vec3 up=vec3(0,1,0);vec3 side=normalize(cross(up,f));up=normalize(cross(f,side));float s=iPosScale.w;vec3 w=iPosScale.xyz+(f*p.x+up*p.y+side*p.z)*s;vWorld=w;vNormal=normalize(f*aNormal.x+up*aNormal.y+side*aNormal.z);vColor=aColor*iColorSpeed.rgb;vLocal=aPos;vObjNormal=aNormal;vFin=smoothstep(.30,.45,aColor.r)*(1.0-smoothstep(.65,.75,aColor.r));gl_Position=uVP*vec4(w,1);}
+void main(){vec3 p=aPos;float tail=1.0-smoothstep(-.9,.45,p.x);float freq=uKind==0?3.8:uKind==1?3.0:2.4;float amp=uKind==0?.115:uKind==1?.14:.085;p.z+=sin(uTime*iColorSpeed.a+iDirPhase.w+p.x*freq)*amp*tail*tail;vec3 f=normalize(iDirPhase.xyz);vec3 up=vec3(0,1,0);vec3 side=normalize(cross(up,f));up=normalize(cross(f,side));float s=iPosScale.w;vec3 w=iPosScale.xyz+(f*p.x+up*p.y+side*p.z)*s;vWorld=w;vNormal=normalize(f*aNormal.x+up*aNormal.y+side*aNormal.z);vColor=aColor*iColorSpeed.rgb;vLocal=aPos;vObjNormal=aNormal;vFin=smoothstep(.30,.45,aColor.r)*(1.0-smoothstep(.65,.75,aColor.r));gl_Position=uVP*vec4(w,1);}
 `;
   const fishFS = head+common+`
-in vec3 vWorld;in vec3 vNormal;in vec3 vColor;in vec3 vLocal;in vec3 vObjNormal;in float vFin;out vec4 frag;uniform int uKind;uniform float uMaterialDetail;
+in vec3 vWorld;in vec3 vNormal;in vec3 vColor;in vec3 vLocal;in vec3 vObjNormal;in float vFin;out vec4 frag;uniform highp int uKind;uniform float uMaterialDetail;
 void main(){
   vec3 n=normalize(vNormal);if(!gl_FrontFacing)n=-n;vec3 V=normalize(uEye-vWorld),L=normalize(uSunDir);
   vec3 base=vColor;float belly=smoothstep(.05,.82,-normalize(vObjNormal).y);
@@ -310,5 +310,47 @@ void main(){
   frag=vec4(filtered,1);
 }
 `;
-  global.SHADERS={baseVS,objectFS,dolphinVS,dolphinFS,fishVS,fishFS,instVS,kelpFS,terrainVS,terrainFS,waterVS,waterFS,fsQuadVS,skyFS,particleVS,particleFS,shaftVS,shaftFS,brightFS,blurFS,compositeFS,fxaaFS};
+
+  const animalVS = head+`
+layout(location=0) in vec3 aPos;layout(location=1) in vec3 aNormal;layout(location=2) in vec3 aColor;layout(location=3) in vec2 aUV;
+layout(location=4) in vec4 iPosScale;layout(location=5) in vec4 iDirPhase;layout(location=6) in vec4 iColorSpeed;
+uniform mat4 uVP;uniform float uTime;uniform highp int uSpecies;
+out vec3 vWorld;out vec3 vNormal;out vec3 vColor;out vec3 vLocal;out vec3 vObjNormal;out float vPart;out float vAux;
+void main(){
+  vec3 p=aPos;int part=int(aUV.x+.5);float aux=aUV.y,phase=iDirPhase.w;
+  if(uSpecies==0){
+    if(part==1){float side=sign(aux),span=max(0.0,abs(aux)-1.0),ang=sin(uTime*2.15+phase-span*.55)*.48;vec2 pivot=vec2(.58,-.04),dyz=vec2(p.y-pivot.y,p.z-side*.58);float c=cos(ang),s=sin(ang);p.y=pivot.y+c*dyz.x-s*dyz.y;p.z=side*.58+s*dyz.x+c*dyz.y;}
+    else if(part==2){p.y+=sin(uTime*2.15+phase+aux*.4)*.055;}
+  }else if(uSpecies==1){if(part==1){float span=max(0.0,abs(aux)-1.0);p.y+=sin(uTime*1.35+phase-span*.78)*.50*pow(span,1.22);p.x+=sin(uTime*1.35+phase-span*.65)*.055*span;}}
+  else if(uSpecies==2){float tail=1.0-smoothstep(-3.6,1.2,p.x);p.y+=sin(p.x*.85-uTime*1.35+phase)*.22*tail*tail;}
+  else if(uSpecies==3){float pulse=sin(uTime*1.85+phase);if(part==1){p.xz*=1.0+.11*pulse*aux;p.y*=.96-.07*pulse;}else{float lag=uTime*1.85+phase-aux*.85;p.x+=sin(lag)*.075*aux;p.z+=cos(lag*.91)*.065*aux;p.y+=pulse*.075*(1.0-aux);}}
+  else if(uSpecies==4){if(part==1){p.y+=sin(uTime*1.9+phase+aux*2.0)*.035;}else if(part>=2&&part<=4){p.z+=sin(uTime*2.2+phase+aux*1.7)*.045;p.y+=cos(uTime*2.0+phase+aux)*.025;}}
+  else if(uSpecies==5){if(part==1){float step=sin(uTime*3.7+phase+aux*3.14159265);p.y+=max(0.0,step)*.075;p.x+=cos(uTime*3.7+phase+aux*3.14159265)*.045;}else if(part==0){p.y+=sin(uTime*3.7+phase)*.012;}}
+  vec3 f=normalize(iDirPhase.xyz),up=vec3(0,1,0),side=normalize(cross(up,f));up=normalize(cross(f,side));float sc=iPosScale.w;
+  vec3 w=iPosScale.xyz+(f*p.x+up*p.y+side*p.z)*sc;vWorld=w;vNormal=normalize(f*aNormal.x+up*aNormal.y+side*aNormal.z);vColor=aColor*iColorSpeed.rgb;vLocal=p;vObjNormal=aNormal;vPart=aUV.x;vAux=aux;gl_Position=uVP*vec4(w,1);
+}
+`;
+  const animalFS = head+common+`
+in vec3 vWorld;in vec3 vNormal;in vec3 vColor;in vec3 vLocal;in vec3 vObjNormal;in float vPart;in float vAux;out vec4 frag;uniform highp int uSpecies;
+void main(){
+  vec3 n=normalize(vNormal);if(!gl_FrontFacing)n=-n;vec3 V=normalize(uEye-vWorld),L=normalize(uSunDir),base=vColor;int part=int(vPart+.5);float alpha=1.0,rough=.48;
+  if(uSpecies==0){
+    if(part==4){vec2 q=vLocal.xz*3.1+vec2(noise2(vLocal.xz*2.0),noise2(vLocal.zx*2.3))*.24;float edge=voronoiEdge(q);float groove=1.0-smoothstep(.012,.055,edge);float tone=noise2(floor(q)*1.7);base*=.72+.32*tone;base=mix(base,base*vec3(.34,.40,.25),groove*.72);rough=.66;}
+    else base*=.90+.16*noise2(vLocal.xy*18.0);
+  }else if(uSpecies==1){float belly=smoothstep(-.2,.6,-normalize(vObjNormal).y);base=mix(base,vec3(.66,.72,.68),belly*.82);base*=.92+.12*noise2(vLocal.xz*3.0);rough=.40;
+  }else if(uSpecies==2){
+    vec2 q=vLocal.xz*2.15+vec2(noise2(vLocal.xz*1.3),noise2(vLocal.zx*1.7))*.32;vec2 id=floor(q),f=fract(q),rnd=vec2(hash21(id),hash21(id+17.3));float d=length(f-(.18+.64*rnd));float spot=(1.0-smoothstep(.075,.16,d))*smoothstep(-.35,.25,normalize(vObjNormal).y);base=mix(base,vec3(.61,.72,.71),spot*.82);rough=.43;
+  }else if(uSpecies==3){
+    float radial=.5+.5*sin(atan(vLocal.z,vLocal.x)*16.0+noise2(vLocal.xz*9.0)*2.0);float rim=pow(1.0-abs(dot(n,V)),2.0);base*=.78+.22*radial;alpha=part==1?.13+.16*rim+radial*.035:part==2?.24:.17;rough=.30;
+  }else if(uSpecies==4){
+    float stripes=.5+.5*sin(vLocal.x*18.0+noise2(vLocal.xy*3.0)*2.4);vec3 cream=vec3(.72,.62,.43),dark=vec3(.20,.095,.055);base=mix(dark,cream,smoothstep(.28,.72,stripes));if(part>0)base*=.82+.18*sin(vAux*25.0);rough=.46;
+  }else{float layer=noise2(vLocal.xz*14.0+vLocal.yy*4.0);base*=.80+.28*layer;rough=.67;}if(uSpecies==4&&part==4)alpha=.40;
+  float wrap=clamp((dot(n,L)+.22)/1.22,0.0,1.0),ndl=max(0.0,dot(n,L));vec3 col=base*(.29+.73*wrap);
+  float spec=ggxSpecular(n,V,L,rough,uSpecies==3?.012:.025)*ndl;col+=vec3(.52,.72,.69)*spec*.36;
+  if(uSpecies==3){float rim=pow(1.0-abs(dot(n,V)),3.0);col+=vec3(.10,.23,.23)*rim;}
+  else{float ca=caustics(vWorld.xz,uTime)*max(0.0,n.y);col+=vec3(.24,.54,.46)*ca*.14;}
+  col=waterFog(col,vWorld,distance(uEye,vWorld));frag=vec4(col,alpha);
+}
+`;
+  global.SHADERS={baseVS,objectFS,dolphinVS,dolphinFS,fishVS,fishFS,instVS,kelpFS,terrainVS,terrainFS,waterVS,waterFS,fsQuadVS,skyFS,particleVS,particleFS,shaftVS,shaftFS,brightFS,blurFS,compositeFS,fxaaFS,animalVS,animalFS};
 })(window);

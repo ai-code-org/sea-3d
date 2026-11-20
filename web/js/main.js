@@ -34,8 +34,8 @@
   canvas.addEventListener('webglcontextlost',e=>{e.preventDefault();fatal.textContent='WebGL 上下文已丢失，请刷新页面恢复。';fatal.style.display='block';});
   function updateCamera(dt){
     state.speed+=(state.speedTarget-state.speed)*(1-Math.exp(-dt*3.5));state.yaw+=(state.yawTarget-state.yaw)*(1-Math.exp(-dt*8));state.pitch+=(state.pitchTarget-state.pitch)*(1-Math.exp(-dt*8));
-    if(state.playing)state.phase=(state.phase+dt*state.speed/SCENE.CONFIG.tourSeconds)%1;
-    SCENE.catmull(scene.cameraPath,state.phase,camera.baseEye);SCENE.catmull(scene.targetPath,state.phase,camera.baseTarget);camera.eye.set(camera.baseEye);
+    if(state.playing)state.phase=(state.phase+dt*state.speed*SCENE.slowFactor(state.phase)*ANIMALS.slowFactor(state.phase)/SCENE.CONFIG.tourSeconds)%1;
+    SCENE.catmull(scene.cameraPath,state.phase,camera.baseEye);SCENE.catmull(scene.targetPath,state.phase,camera.baseTarget);SCENE.applyGaze(state.phase,camera.baseEye,camera.baseTarget,scene.dolphins[0].pos);ANIMALS.applyGaze(state.phase,camera.baseEye,camera.baseTarget,scene.animals);camera.eye.set(camera.baseEye);
     let dx=camera.baseTarget[0]-camera.eye[0],dy=camera.baseTarget[1]-camera.eye[1],dz=camera.baseTarget[2]-camera.eye[2];const len=Math.hypot(dx,dy,dz),yaw=Math.atan2(dx,dz)+state.yaw,pitch=Math.max(-1.1,Math.min(1.1,Math.atan2(dy,Math.hypot(dx,dz))+state.pitch)),cp=Math.cos(pitch);
     camera.target[0]=camera.eye[0]+Math.sin(yaw)*cp*len;camera.target[1]=camera.eye[1]+Math.sin(pitch)*len;camera.target[2]=camera.eye[2]+Math.cos(yaw)*cp*len;
   }
@@ -43,13 +43,13 @@
   function capture(){captureRequested=false;canvas.toBlob(blob=>{if(!blob){toast('截图失败，请重试');return;}const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='深蓝漫游-'+new Date().toISOString().replace(/[:.]/g,'-')+'.png';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);toast('已保存当前深海画面');},'image/png');}
   function frame(now){
     const rawDt=(now-lastTime)/1000,dt=Math.min(.05,Math.max(.001,rawDt));lastTime=now;state.time+=dt;
-    updateCamera(dt);scene.update(state.time,state.phase);renderer.resize();renderer.renderScene(scene,camera,state.time);renderer.post(state.time);if(captureRequested)capture();
+    updateCamera(dt);scene.update(state.time,state.phase,dt);renderer.resize();renderer.renderScene(scene,camera,state.time);renderer.post(state.time);if(captureRequested)capture();
     frames++;const instant=1/Math.max(.001,rawDt);state.fps+= (Math.min(240,instant)-state.fps)*.06;
     if(now-statTime>600){const fps=Math.round(frames*1000/(now-statTime));state.fps=state.fps*.35+fps*.65;fpsEl.textContent=Math.round(state.fps)+' FPS';qualityEl.textContent=state.qualityMode==='cinema'?'电影':(state.qualityMode==='auto'?'自动 · ':'')+['流畅','中','高'][renderer.quality];resEl.textContent=renderer.dpr.toFixed(2)+'× DPR';document.getElementById('depth').innerHTML=(18-camera.eye[1]).toFixed(1)+' <small>M</small>';document.getElementById('depthLine').style.width=Math.max(5,Math.min(100,(18-camera.eye[1])/32*100))+'%';state.drawCalls=renderer.drawCalls;frames=0;statTime=now;adapt(now,state.fps);}
     requestAnimationFrame(frame);
   }
   window.__app={scene,renderer,camera,state,setQuality,resetView,version:'2.0.0'};
-  updateCamera(.016);renderer.resize();scene.update(0,0);renderer.renderScene(scene,camera,0);renderer.post(0);
+  updateCamera(.016);renderer.resize();scene.update(0,0,.016);renderer.renderScene(scene,camera,0);renderer.post(0);
   const err=renderer.gl.getError();if(err!==renderer.gl.NO_ERROR){fail(new Error('WebGL 首次绘制错误：0x'+err.toString(16)));return;}
   document.getElementById('loading').classList.add('done');setTimeout(()=>document.getElementById('loading').style.display='none',900);lastTime=performance.now();statTime=lastTime;adaptTime=lastTime;requestAnimationFrame(frame);
 })();

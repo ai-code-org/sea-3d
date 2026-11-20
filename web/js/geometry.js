@@ -106,35 +106,48 @@
   }
 
   function dolphin() {
-    const parts=[],p=[],id=[],co=[],rings=52,seg=24;
-    const radii=[[0,.07],[.08,.17],[.22,.48],[.40,.86],[.57,.91],[.68,.80],[.78,.72],[.85,.64],[.91,.52],[.96,.36],[1,.025]];
+    const parts=[],p=[],id=[],co=[],rings=72,seg=28;
+    const radii=[[0,.055],[.08,.12],[.20,.34],[.36,.68],[.50,.82],[.62,.80],[.72,.68],[.80,.58],[.85,.50],[.885,.36],[.91,.22],[.94,.18],[.975,.16],[1,.025]];
     for(let j=0;j<=rings;j++) {
-      const t=j/rings,x=-3.45+t*6.15,r=profile(t,radii);
-      const center=.11*Math.sin(t*Math.PI)-.08*t;
+      const t=j/rings,x=-3.45+t*6.72,r=profile(t,radii),center=.045*Math.sin(t*Math.PI)-.025*t;
+      let width=.50+.31*Math.sin(Math.PI*Math.min(1,t*1.03));
+      if(t>.86){const u=Math.min(1,(t-.86)/.06);width=.70+(.82-.70)*u*u*(3-2*u);}
+      const height=.93+.065*Math.sin(t*Math.PI);
       for(let i=0;i<=seg;i++) {
-        const a=i/seg*TAU,up=Math.cos(a);
-        const melon=Math.exp(-Math.pow((x-2.02)/.48,2))*.18*Math.max(0,up);
-        p.push(x,center+up*r*.88+melon,Math.sin(a)*r*.76);
+        const a=i/seg*TAU,up=Math.cos(a),melon=Math.exp(-Math.pow((x-1.92)/.54,2))*.080*Math.max(0,up);
+        p.push(x,center+up*r*height+melon,Math.sin(a)*r*width);
         const belly=Math.max(0,-up),top=Math.max(0,up);
         co.push(.20+belly*.55-top*.035,.36+belly*.49-top*.04,.43+belly*.43-top*.03);
       }
     }
-    for(let j=0;j<rings;j++)for(let i=0;i<seg;i++) {
-      const a=j*(seg+1)+i,b=a+seg+1;id.push(a,a+1,b,b,a+1,b+1);
-    }
+    for(let j=0;j<rings;j++)for(let i=0;i<seg;i++){const a=j*(seg+1)+i,b=a+seg+1;id.push(a,a+1,b,b,a+1,b+1);}
     parts.push(computeNormals(mesh(p,id,null,co)));
-    /* 短而钝圆的瓶鼻吻部，与额隆和身体合并后仍只有一次绘制。 */
-    parts.push(ellipsoid(.65,.19,.22,2.92,-.13,0,20,12,[.28,.42,.47]));
-    /* 前缘隆起、尖端后弯、后缘内凹的连续曲线背鳍。 */
-    parts.push(curvedFin([[.65,.63,0],[.34,1.08,0],[.02,1.53,0],[-.42,1.88,0],[-.25,1.42,0],[-.38,1.02,0],[-.93,.64,0]],.065,[.16,.30,.36],5));
-    for(const s of [-1,1])parts.push(curvedFin([[1.25,-.30,s*.53],[.48,-.66,s*1.04],[-.48,-1.03,s*1.72],[-.20,-.49,s*.75],[.55,-.16,s*.52]],.040,[.24,.40,.46],5));
-    /* 左右独立弧形尾叶，中央 V 形分叉，外缘向后弯曲。 */
-    for(const s of [-1,1])parts.push(curvedFin([[-3.17,0,0],[-3.29,.015,s*.62],[-3.53,.025,s*1.28],[-3.94,.015,s*1.68],[-4.17,0,s*1.46],[-3.96,-.01,s*.84],[-3.48,0,0]],.035,[.18,.33,.40],5));
-    for(const s of [-1,1]) {
-      parts.push(ellipsoid(.115,.105,.065,2.18,.24,s*.405,12,8,[.006,.012,.016]));
-      parts.push(ellipsoid(.030,.030,.020,2.22,.275,s*.457,8,6,[.75,.95,1]));
+    /* 吻部已并入上方连续放样；口角仅为浅灰细曲线。 */
+    const mp=[],mi=[],mc=[],mouthColor=[.12,.19,.20];
+    for(const side of [-1,1]){
+      const a=[2.20,-.145,side*.30],b=[2.60,-.18,side*.17],c=[3.12,-.105,side*.065];
+      cylinderBetween(a,b,.006,6,mp,mi,mc,mouthColor);cylinderBetween(b,c,.005,6,mp,mi,mc,mouthColor);
     }
-    return merge(parts);
+    parts.push(computeNormals(mesh(mp,mi,null,mc)));
+    parts.push(curvedFin([[.58,.61,0],[.30,.91,0],[.04,1.24,0],[-.36,1.49,0],[-.22,1.13,0],[-.34,.86,0],[-.86,.61,0]],.058,[.16,.30,.36],6));
+    for(const s of [-1,1]){
+      const fin=curvedFin([[1.10,-.25,s*.48],[.72,-.45,s*.77],[.08,-.66,s*1.15],[-.34,-.67,s*1.30],[-.30,-.50,s*1.08],[.10,-.28,s*.70],[.72,-.14,s*.49]],.042,[.20,.34,.40],5),root=[1.10,-.25,s*.48];
+      for(let i=0;i<fin.pos.length;i+=3)for(let k=0;k<3;k++)fin.pos[i+k]=root[k]+(fin.pos[i+k]-root[k])*.90;
+      parts.push(fin);
+    }
+    const fluke=curvedFin([
+      [-3.12,0,0],[-3.25,.01,.43],[-3.42,.02,.88],[-3.66,.015,1.17],[-3.88,0,1.20],
+      [-3.98,-.01,1.04],[-3.78,-.015,.55],[-3.48,-.01,.16],[-3.36,0,0],
+      [-3.48,-.01,-.16],[-3.78,-.015,-.55],[-3.98,-.01,-1.04],[-3.88,0,-1.20],
+      [-3.66,.015,-1.17],[-3.42,.02,-.88],[-3.25,.01,-.43]
+    ],.040,[.18,.33,.40],4);
+    for(let i=2;i<fluke.pos.length;i+=3)fluke.pos[i]*=.60;
+    parts.push(fluke);
+    for(const s of [-1,1]) {
+      parts.push(ellipsoid(.038,.032,.010,2.00,.15,s*.315,12,8,[.025,.045,.052]));
+      parts.push(ellipsoid(.008,.008,.004,2.018,.162,s*.322,8,6,[.48,.65,.69]));
+    }
+    const out=merge(parts);for(let i=0;i<out.pos.length;i++)out.pos[i]*=.48;return out;
   }
 
   function fish(kind) {
@@ -215,5 +228,5 @@
     return computeNormals(m);
   }
 
-  global.GEO={mesh,computeNormals,merge,dolphin,fish,grid,kelp,coral,rock};
+  global.GEO={mesh,computeNormals,merge,dolphin,fish,grid,kelp,coral,rock,ellipsoid,curvedFin,cylinderBetween};
 })(window);

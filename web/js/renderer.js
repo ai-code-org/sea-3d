@@ -18,7 +18,7 @@
     if(!gl)throw new Error('此浏览器不支持 WebGL2');
     this.gl=gl;this.canvas=canvas;this.floatExt=!!gl.getExtension('EXT_color_buffer_float');this.preferHDR=false;this.hdr=false;this.quality=2;this.cinema=false;this.requestedSamples=4;this.msaaSamples=1;this.dpr=Math.min(devicePixelRatio||1,1);this.drawCalls=0;
     const S=global.SHADERS;
-    this.programs={object:program(gl,S.baseVS,S.objectFS),dolphin:program(gl,S.dolphinVS,S.dolphinFS),fish:program(gl,S.fishVS,S.fishFS),inst:program(gl,S.instVS,S.objectFS),kelp:program(gl,S.instVS,S.kelpFS),terrain:program(gl,S.terrainVS,S.terrainFS),water:program(gl,S.waterVS,S.waterFS),sky:program(gl,S.fsQuadVS,S.skyFS),particle:program(gl,S.particleVS,S.particleFS),shaft:program(gl,S.shaftVS,S.shaftFS),bright:program(gl,S.fsQuadVS,S.brightFS),blur:program(gl,S.fsQuadVS,S.blurFS),composite:program(gl,S.fsQuadVS,S.compositeFS),fxaa:program(gl,S.fsQuadVS,S.fxaaFS)};
+    this.programs={object:program(gl,S.baseVS,S.objectFS),dolphin:program(gl,S.dolphinVS,S.dolphinFS),fish:program(gl,S.fishVS,S.fishFS),inst:program(gl,S.instVS,S.objectFS),kelp:program(gl,S.instVS,S.kelpFS),terrain:program(gl,S.terrainVS,S.terrainFS),water:program(gl,S.waterVS,S.waterFS),sky:program(gl,S.fsQuadVS,S.skyFS),particle:program(gl,S.particleVS,S.particleFS),shaft:program(gl,S.shaftVS,S.shaftFS),bright:program(gl,S.fsQuadVS,S.brightFS),blur:program(gl,S.fsQuadVS,S.blurFS),composite:program(gl,S.fsQuadVS,S.compositeFS),fxaa:program(gl,S.fsQuadVS,S.fxaaFS),animal:program(gl,S.animalVS,S.animalFS)};
     this.quad=gl.createVertexArray();gl.bindVertexArray(this.quad);bindVec(gl,0,2,new Float32Array([-1,-1,3,-1,-1,3]));gl.bindVertexArray(null);
     this.proj=M4.create();this.view=M4.create();this.vp=M4.create();this.invVP=M4.create();this.fbos=null;
     gl.enable(gl.DEPTH_TEST);gl.depthFunc(gl.LEQUAL);gl.disable(gl.CULL_FACE);
@@ -46,10 +46,11 @@
     p=this.programs.terrain;gl.useProgram(p.p);this.setCommon(p,scene,time);this.draw(p,scene.terrain);
     p=this.programs.inst;gl.useProgram(p.p);this.setCommon(p,scene,time);gl.uniform1f(p.u.uSway,0);gl.uniform4f(p.u.uTint,1,1,1,1);this.draw(p,scene.rocks);this.draw(p,scene.corals);
     p=this.programs.kelp;gl.useProgram(p.p);this.setCommon(p,scene,time);gl.uniform1f(p.u.uSway,1);this.draw(p,scene.kelp);
-    p=this.programs.dolphin;gl.useProgram(p.p);this.setCommon(p,scene,time);for(let i=0;i<scene.dolphins.length;i++){const d=scene.dolphins[i];gl.uniformMatrix4fv(p.u.uModel,false,d.model);gl.uniform1f(p.u.uPhase,d.phase);this.draw(p,d.mesh);}
+    p=this.programs.dolphin;gl.useProgram(p.p);this.setCommon(p,scene,time);for(let i=0;i<scene.dolphins.length;i++){const d=scene.dolphins[i];gl.uniformMatrix4fv(p.u.uModel,false,d.model);gl.uniform1f(p.u.uPhase,d.phase);gl.uniform1f(p.u.uSwimFreq,d.frequency);this.draw(p,d.mesh);}
     p=this.programs.fish;gl.useProgram(p.p);this.setCommon(p,scene,time);for(let i=0;i<scene.schools.length;i++){const s=scene.schools[i];gl.uniform1i(p.u.uKind,s.kind);this.draw(p,s.mesh);}
+    if(scene.animals){p=this.programs.animal;gl.useProgram(p.p);this.setCommon(p,scene,time);for(const a of scene.animals)if(a.kind!==3&&a.kind!==4){gl.uniform1i(p.u.uSpecies,a.kind);this.draw(p,a.mesh);}}
     p=this.programs.water;gl.useProgram(p.p);this.setCommon(p,scene,time);this.draw(p,scene.waterMeshes[this.quality]);
-    gl.depthMask(false);gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE);
+    gl.depthMask(false);gl.enable(gl.BLEND);if(scene.animals){p=this.programs.animal;gl.useProgram(p.p);this.setCommon(p,scene,time);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);const jelly=scene.animals[3];gl.uniform1i(p.u.uSpecies,3);this.draw(p,jelly.mesh);const lion=scene.animals[4];gl.uniform1i(p.u.uSpecies,4);this.draw(p,lion.mesh);}gl.blendFunc(gl.SRC_ALPHA,gl.ONE);
     p=this.programs.shaft;gl.useProgram(p.p);this.setCommon(p,scene,time);this.draw(p,scene.shafts);
     p=this.programs.particle;gl.useProgram(p.p);this.setCommon(p,scene,time);gl.bindVertexArray(scene.particles.vao);gl.drawArrays(gl.POINTS,0,scene.particleCounts[this.quality]);this.drawCalls++;
     gl.depthMask(true);gl.disable(gl.BLEND);gl.bindVertexArray(null);
